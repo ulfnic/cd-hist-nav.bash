@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+cd_hist_nav__help_doc() {
 	cat <<-'HelpDoc' >&2
 		A sourceable BASH script for navigating cd history at an interactive BASH prompt using
 		left and right arrow keys combined with a command key.
@@ -19,10 +19,9 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
 
 		EXAMPLE
 		  source cd-hist-nav.bash
-		  cd_hist_nav__init
 
 	HelpDoc
-fi
+}
 
 
 
@@ -95,6 +94,14 @@ cd_hist_nav() {
 		fi
 	fi
 }
+
+
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+	cd_hist_nav__help_doc
+else
+	cd_hist_nav__init
+fi
 
 
 
