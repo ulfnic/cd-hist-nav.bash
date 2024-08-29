@@ -7,7 +7,6 @@ cd_hist_nav__help_doc() {
 		left and right arrow keys combined with a command key.
 
 		ENVIRONMENT
-		  CD_HIST_NAV__PS1_LINES     default: 1, number of lines used by PS1 prompt
 		  CD_HIST_NAV__COMMAND_KEY   default: ctrl, combo key to use with left/right arrow
 		                             accepted values: alt, ctrl, shift
 		  HISTCONTROL                Ignore space combined with the existing value so binds can
@@ -29,9 +28,11 @@ cd_hist_nav__init() {
 	# Prepare global variables
 	CD_HIST_NAV__HISTORY_ARR=("$PWD")
 	CD_HIST_NAV__HISTORY_INDEX=0
-	: ${CD_HIST_NAV__PS1_LINES:=1}
 	: ${CD_HIST_NAV__COMMAND_KEY:='ctrl'}
-	CD_HIST_NAV__CLEAR_FROM_PREV_PS1_SEQ=
+
+	CD_NAV_TOOLS__MUTLILINE_PS1=
+	[[ $PS1 == *'\n'* ]] && CD_NAV_TOOLS__MUTLILINE_PS1=1
+
 	[[ $HISTCONTROL == 'ignoredups' ]] && HISTCONTROL='ignoreboth' || HISTCONTROL='ignorespace'
 
 
@@ -47,18 +48,8 @@ cd_hist_nav__init() {
 
 	[[ ${combo_to_seq[${CD_HIST_NAV__COMMAND_KEY}_left]} ]] || { printf '%s%q\n' 'cd_hist_nav: err, bad combo key: ' "$CD_HIST_NAV__COMMAND_KEY" >&2; return 1; }
 
-	bind '"'${combo_to_seq[${CD_HIST_NAV__COMMAND_KEY}_left]}'":" \C-u cd_hist_nav back\n"'
-	bind '"'${combo_to_seq[${CD_HIST_NAV__COMMAND_KEY}_right]}'":" \C-u cd_hist_nav forward\n"'
-
-
-	# Build escape sequences for moving the cursor to the line the previous prompt began
-	for (( i = 0; i < CD_HIST_NAV__PS1_LINES; i++ )); do
-		CD_HIST_NAV__CLEAR_FROM_PREV_PS1_SEQ+='\033[A'
-	done
-
-
-	# Append moving cursor to start of line and clear to end of screen
-	CD_HIST_NAV__CLEAR_FROM_PREV_PS1_SEQ+='\033[G\e[0J'
+	bind '"'${combo_to_seq[${CD_HIST_NAV__COMMAND_KEY}_left]}'":" \C-u cd_hist_nav b\n"'
+	bind '"'${combo_to_seq[${CD_HIST_NAV__COMMAND_KEY}_right]}'":" \C-u cd_hist_nav f\n"'
 }
 
 
@@ -82,17 +73,83 @@ cd() {
 
 
 cd_hist_nav() {
-	printf "${CD_HIST_NAV__CLEAR_FROM_PREV_PS1_SEQ}"
+	local cmd=" cd_hist_nav $1"
+	cd_nav_tools__home_cursor "${#cmd}"
 
-	if [[ $1 == 'back' ]]; then
+	if [[ $1 == 'b' ]]; then
 		if (( CD_HIST_NAV__HISTORY_INDEX > 0 )); then
 			builtin cd -- "${CD_HIST_NAV__HISTORY_ARR[$(( --CD_HIST_NAV__HISTORY_INDEX ))]}"
 		fi
-	elif [[ $1 == 'forward' ]]; then
+	elif [[ $1 == 'f' ]]; then
 		if (( CD_HIST_NAV__HISTORY_INDEX < ${#CD_HIST_NAV__HISTORY_ARR[@]} - 1 )); then
 			builtin cd -- "${CD_HIST_NAV__HISTORY_ARR[$(( ++CD_HIST_NAV__HISTORY_INDEX ))]}"
 		fi
 	fi
+}
+
+
+
+cd_nav_tools__home_cursor() {
+	local \
+		cmd_len=$1 \
+		prompt_orig=$PS1 \
+		IFS prompt_plain prompt_try parent_noglob_set prompt_lines_last_index i prompt_len prompt_distance i2
+
+
+	# Find the plain character length of the interpreted PS1 with okay-ish accuracy
+	while [[ $prompt_orig ]]; do
+		prompt_plain+=${prompt_orig%%\\[e[]*}
+		prompt_try=${prompt_orig#*\\]}
+		[[ $prompt_orig == "$prompt_try" ]] && break
+		prompt_orig=$prompt_try
+	done
+	prompt_plain=${prompt_plain@P}
+
+
+	# Move the cursor up a line till it's at the beginning of the previous prompt mindful of line wrapping
+
+
+	# If PS1 doesn't contain newlines handle it cheaply
+	if [[ ! $CD_NAV_TOOLS__MUTLILINE_PS1 ]]; then
+		prompt_distance=$(( ( ${#prompt_plain} + cmd_len - 1 ) / COLUMNS ))
+		for (( i = 0; i <= prompt_distance; i++ )); do
+			printf '\e[A'
+		done
+
+		# Clear from cursor to end of terminal
+		printf '\e[0J'
+		return
+	fi
+
+
+	# Handle PS1 containing newlines
+	prompt_plain=${prompt_plain//$'\r'/}
+
+
+	shopt -q -o noglob && parent_noglob_set=1
+	[[ $parent_noglob_set ]] || set -f
+	IFS=$'\n'
+	local -a prompt_lines=( $prompt_plain )
+	[[ $parent_noglob_set ]] || set +f
+	prompt_lines_last_index=$(( ${#prompt_lines[@]} - 1 ))
+
+
+	for (( i = 0; i <= prompt_lines_last_index; i++ )); do
+		prompt_len=${#prompt_lines[i]}
+
+		if [[ $i == "$prompt_lines_last_index" ]]; then
+			prompt_len=$(( prompt_len + cmd_len ))
+		fi
+
+		prompt_distance=$(( ( prompt_len - 1 ) / COLUMNS ))
+
+		for (( i2 = 0; i2 <= prompt_distance; i2++ )); do
+			printf '\e[A'
+		done
+	done
+
+	# Clear from cursor to end of terminal
+	printf '\e[0J'
 }
 
 
