@@ -112,9 +112,7 @@ cd_nav_tools__home_cursor() {
 	# If PS1 doesn't contain newlines handle it cheaply
 	if [[ ! $CD_NAV_TOOLS__MUTLILINE_PS1 ]]; then
 		prompt_distance=$(( ( ${#prompt_plain} + cmd_len - 1 ) / COLUMNS ))
-		for (( i = 0; i <= prompt_distance; i++ )); do
-			printf '\e[A'
-		done
+		printf '\e[%dA' "$prompt_distance"
 
 		# Clear from cursor to end of terminal
 		printf '\e[0J'
@@ -142,10 +140,7 @@ cd_nav_tools__home_cursor() {
 		fi
 
 		prompt_distance=$(( ( prompt_len - 1 ) / COLUMNS ))
-
-		for (( i2 = 0; i2 <= prompt_distance; i2++ )); do
-			printf '\e[A'
-		done
+		printf '\e[%dA' "$prompt_distance"
 	done
 
 	# Clear from cursor to end of terminal
